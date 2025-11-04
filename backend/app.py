@@ -16,7 +16,7 @@ def create_app():
     # Configurar Login Manager
     login_manager = LoginManager()
     login_manager.init_app(app)
-    login_manager.login_view = 'auth.login'
+    login_manager.login_view = 'auth.login'  # type: ignore
     
     # Importar y registrar modelos aquí para evitar importaciones circulares
     from backend.models import User
@@ -37,11 +37,11 @@ def create_app():
         # Crear usuarios predeterminados si no existen
         if User.query.count() == 0:
             print("⚙️  Inicializando usuarios predeterminados...")
-            admin = User(username='admin', role='admin')
+            admin = User(username='admin', role='admin')  # type: ignore
             admin.set_password('admin123')
             db.session.add(admin)
             
-            docente = User(username='docente', role='docente')
+            docente = User(username='docente', role='docente')  # type: ignore
             docente.set_password('docente123')
             db.session.add(docente)
             
