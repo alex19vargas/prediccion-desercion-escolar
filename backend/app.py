@@ -30,8 +30,22 @@ def create_app():
     app.register_blueprint(auth_routes.bp)
     app.register_blueprint(dashboard_routes.bp)
     
-    # Crear todas las tablas
+    # Crear todas las tablas e inicializar usuarios
     with app.app_context():
         db.create_all()
+        
+        # Crear usuarios predeterminados si no existen
+        if User.query.count() == 0:
+            print("⚙️  Inicializando usuarios predeterminados...")
+            admin = User(username='admin', role='admin')
+            admin.set_password('admin123')
+            db.session.add(admin)
+            
+            docente = User(username='docente', role='docente')
+            docente.set_password('docente123')
+            db.session.add(docente)
+            
+            db.session.commit()
+            print("✅ Usuarios creados exitosamente")
     
     return app
