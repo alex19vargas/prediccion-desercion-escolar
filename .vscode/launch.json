@@ -1,0 +1,41 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python: Flask",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "flask",
+      "env": {
+        "FLASK_APP": "run.py",
+        "FLASK_ENV": "development",
+        "FLASK_DEBUG": "1"
+      },
+      "args": [
+        "run",
+        "--no-debugger",
+        "--no-reload"
+      ],
+      "jinja": true,
+      "justMyCode": true,
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Python: Current File",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "Python: Run Model Training",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/modelos/modelo_desercion_escolar.py",
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}

@@ -1,0 +1,506 @@
+
+# Predicción de Deserción Escolar --> Desertor: 1, No Desertor: 0
+
+# import catboost as cb  # he tenido problemas con la instalación de este modelo
+import os
+import warnings
+
+import joblib
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
+from evaluador import EvaluadorModelo
+from sklearn.ensemble import (AdaBoostClassifier, GradientBoostingClassifier,
+                              RandomForestClassifier)
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import (average_precision_score, classification_report,
+                             confusion_matrix, precision_recall_curve,
+                             roc_auc_score, roc_curve)
+from sklearn.model_selection import (GridSearchCV, StratifiedKFold,
+                                     cross_val_score, learning_curve,
+                                     train_test_split)
+from sklearn.naive_bayes import GaussianNB
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.neural_network import MLPClassifier
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC
+from sklearn.tree import DecisionTreeClassifier
+
+# Configuración global
+warnings.filterwarnings('ignore')
+sns.set_style('whitegrid')
+
+# Definir ruta base de resultados
+RESULTADOS_BASE = os.path.join(os.path.dirname(__file__), '..', 'resultados', 'modelo_base')
+
+# Asegurar que los directorios de resultados existen
+os.makedirs(os.path.join(RESULTADOS_BASE, 'matrices'), exist_ok=True)
+os.makedirs(os.path.join(RESULTADOS_BASE, 'graficos'), exist_ok=True)
+os.makedirs(os.path.join(RESULTADOS_BASE, 'metricas'), exist_ok=True)
+os.makedirs(os.path.join(RESULTADOS_BASE, 'modelos'), exist_ok=True)
+
+DATA_PATH = "/Users/alexandervargas/Downloads/DesercionEscolarCompleta.xlsx"
+
+def cargar_datos(path):
+    """
+    Carga y prepara los datos para el modelo.
+    Returns:
+        X (DataFrame): Variables predictoras
+        y (Series): Variable objetivo (Desertor)
+    """
+    df = pd.read_excel(path)
+    
+    # Mostrar las columnas disponibles
+    print("\nColumnas en el dataset:")
+    print(df.columns.tolist())
+    
+    # Definir la variable objetivo
+    y = df["Dropped_Out"]
+    
+    print("\n📊 Distribución de la variable objetivo:")
+    print(y.value_counts(normalize=True))
+    
+    # Seleccionar variables predictoras (excluyendo School y Dropped_Out)
+    columnas_a_excluir = ["School", "Dropped_Out"]  # Excluimos identificadores y la variable objetivo
+    X = df.drop(columns=columnas_a_excluir)
+    
+    # Convertir variables categóricas
+    X = pd.get_dummies(X, drop_first=True)
+    
+    # Escalar las variables numéricas
+    scaler = StandardScaler()
+    X = pd.DataFrame(scaler.fit_transform(X), columns=X.columns)
+    
+    return X, y
+
+def plot_learning_curve(estimator, X, y, nombre):
+    
+    # Genera y guarda la curva de aprendizaje para un modelo.
+    train_sizes = np.linspace(0.1, 1.0, 10)
+    train_sizes, train_scores, test_scores = learning_curve(  # type: ignore[misc]
+        estimator, X, y, cv=StratifiedKFold(n_splits=5),
+        n_jobs=-1, train_sizes=train_sizes, scoring='accuracy',
+        return_times=False  # Devuelve solo 3 valores: train_sizes, train_scores, test_scores
+    )
+    
+    train_mean = np.mean(train_scores, axis=1)
+    train_std = np.std(train_scores, axis=1)
+    test_mean = np.mean(test_scores, axis=1)
+    test_std = np.std(test_scores, axis=1)
+    
+    plt.figure(figsize=(10, 6))
+    plt.plot(train_sizes, train_mean, label='Training score', color='blue')
+    plt.fill_between(train_sizes, train_mean - train_std, train_mean + train_std, 
+                     alpha=0.1, color='blue')
+    plt.plot(train_sizes, test_mean, label='Cross-validation score', color='red')
+    plt.fill_between(train_sizes, test_mean - test_std, test_mean + test_std, 
+                     alpha=0.1, color='red')
+    
+    plt.xlabel('Training Size')
+    plt.ylabel('Score')
+    plt.title(f'Learning Curve - {nombre}')
+    plt.legend(loc='lower right')
+    plt.grid(True)
+    plt.savefig(os.path.join(RESULTADOS_BASE, 'graficos', f'learning_curve_{nombre.lower()}.png'), dpi=300, bbox_inches='tight')
+    plt.close()
+
+
+def optimizar_hiperparametros(modelo, param_grid, X, y, nombre):
+
+    # Realiza búsqueda de grid para optimizar hiperparámetros.
+    grid_search = GridSearchCV(
+        modelo, param_grid, cv=StratifiedKFold(n_splits=5),
+        scoring='accuracy', n_jobs=-1
+    )
+    grid_search.fit(X, y)
+    
+    print(f"\n🔧 Mejores parámetros para {nombre}:")
+    print(grid_search.best_params_)
+    print(f"Mejor score: {grid_search.best_score_:.4f}")
+    
+    return grid_search.best_estimator_
+
+
+def entrenar_y_evaluar_modelo(nombre, config, X_train, y_train, X_test, y_test):
+    """
+    Entrena un modelo con búsqueda de hiperparámetros y genera métricas de evaluación detalladas.
+    
+    Args:
+        nombre: Nombre del modelo
+        config: Diccionario con el modelo base y sus parámetros de búsqueda
+        X_train, y_train: Datos de entrenamiento
+        X_test, y_test: Datos de prueba
+    
+    Returns:
+        dict: Diccionario con resultados y el modelo optimizado
+    """
+    print(f"\n🔍 Optimizando {nombre}...")
+    
+    # Búsqueda de hiperparámetros con validación cruzada estratificada
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    grid_search = GridSearchCV(
+        config['model'],
+        config['params'],
+        cv=cv,
+        scoring='roc_auc',
+        n_jobs=-1,
+        verbose=0
+    )
+    
+    # Entrenar modelo con los mejores parámetros
+    grid_search.fit(X_train, y_train)
+    mejor_modelo = grid_search.best_estimator_
+    
+    # Predicciones
+    y_pred = mejor_modelo.predict(X_test)
+    y_pred_proba = mejor_modelo.predict_proba(X_test)[:, 1]
+    
+    # Métricas de rendimiento
+    cv_scores = cross_val_score(mejor_modelo, X_train, y_train, cv=5, scoring='roc_auc')
+    
+    # Curva de aprendizaje
+    train_sizes, train_scores, valid_scores = learning_curve(  # type: ignore[misc]
+        mejor_modelo, X_train, y_train,
+        train_sizes=np.linspace(0.1, 1.0, 5),
+        cv=5, scoring='roc_auc',
+        return_times=False  # Devuelve solo 3 valores
+    )
+    
+    resultados = {
+        'modelo': mejor_modelo,
+        'mejores_params': grid_search.best_params_,
+        'mejor_score': grid_search.best_score_,
+        'y_pred': y_pred,
+        'y_pred_proba': y_pred_proba,
+        'confusion_matrix': confusion_matrix(y_test, y_pred),
+        'classification_report': classification_report(y_test, y_pred),
+        'roc_auc': roc_auc_score(y_test, y_pred),
+        'avg_precision': average_precision_score(y_test, y_pred_proba),
+        'cv_mean': cv_scores.mean(),
+        'cv_std': cv_scores.std(),
+        'learning_curve': {
+            'train_sizes': train_sizes,
+            'train_scores': train_scores,
+            'valid_scores': valid_scores
+        }
+    }
+    
+    return resultados
+
+
+def graficar_resultados(nombre, resultados, X):
+    """
+    Genera y guarda visualizaciones detalladas de los resultados del modelo.
+    
+    Args:
+        nombre: Nombre del modelo
+        resultados: Diccionario con los resultados del modelo
+        X: DataFrame con las variables predictoras
+    """
+    # 1. Matriz de confusión mejorada
+    plt.figure(figsize=(8, 6))
+    cm = resultados['confusion_matrix']
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+                xticklabels=['No Desertor', 'Desertor'],
+                yticklabels=['No Desertor', 'Desertor'])
+    plt.title(f'Matriz de Confusión - {nombre}')
+    plt.ylabel('Real')
+    plt.xlabel('Predicho')
+    plt.savefig(os.path.join(RESULTADOS_BASE, 'matrices', f'matriz_confusion_{nombre.lower()}.png'), dpi=300, bbox_inches='tight')
+    plt.close()
+
+    # 2. Importancia de variables (si está disponible)
+    if hasattr(resultados['modelo'], 'feature_importances_'):
+        importancias = pd.DataFrame({
+            'Variable': X.columns,
+            'Importancia': resultados['modelo'].feature_importances_
+        }).sort_values(by='Importancia', ascending=False)
+
+        plt.figure(figsize=(12, 6))
+        sns.barplot(x='Importancia', y='Variable', 
+                   data=importancias.head(15), palette='viridis')
+        plt.title(f'Variables más importantes - {nombre}')
+        plt.xlabel('Importancia')
+        plt.ylabel('Variable')
+        plt.tight_layout()
+        plt.savefig(os.path.join(RESULTADOS_BASE, 'graficos', f'importancia_variables_{nombre.lower()}.png'), dpi=300)
+        plt.close()
+        
+        return importancias
+
+    # 3. Curva de aprendizaje
+    plt.figure(figsize=(10, 6))
+    train_sizes = resultados['learning_curve']['train_sizes']
+    train_scores = resultados['learning_curve']['train_scores']
+    valid_scores = resultados['learning_curve']['valid_scores']
+    
+    plt.plot(train_sizes, train_scores.mean(axis=1), label='Training')
+    plt.plot(train_sizes, valid_scores.mean(axis=1), label='Validation')
+    plt.fill_between(train_sizes, 
+                     train_scores.mean(axis=1) - train_scores.std(axis=1),
+                     train_scores.mean(axis=1) + train_scores.std(axis=1), alpha=0.1)
+    plt.fill_between(train_sizes, 
+                     valid_scores.mean(axis=1) - valid_scores.std(axis=1),
+                     valid_scores.mean(axis=1) + valid_scores.std(axis=1), alpha=0.1)
+    
+    plt.xlabel('Training Examples')
+    plt.ylabel('Score (ROC-AUC)')
+    plt.title(f'Curva de Aprendizaje - {nombre}')
+    plt.legend(loc='best')
+    plt.grid(True)
+    plt.savefig(os.path.join(RESULTADOS_BASE, 'graficos', f'curva_aprendizaje_{nombre.lower()}.png'), dpi=300, bbox_inches='tight')
+    plt.close()
+
+    return None
+
+def main():
+    try:
+        # 1. Cargar y preparar datos
+        print("🔄 Cargando datos...")
+        print(f"Intentando leer archivo desde: {DATA_PATH}")
+        X, y = cargar_datos(DATA_PATH)
+        print("✅ Datos cargados exitosamente")
+    except Exception as e:
+        print(f"❌ Error al cargar los datos: {str(e)}")
+        return
+    
+    # 2. Escalar variables (importante para SVM y KNN)
+    scaler = StandardScaler()
+    X_scaled = pd.DataFrame(scaler.fit_transform(X), columns=X.columns)
+    
+    # 3. Dividir datos
+    X_train, X_test, y_train, y_test = train_test_split(
+        X_scaled, y, test_size=0.3, random_state=42, stratify=y
+    )
+    
+    # 4. Configurar los modelos y sus parámetros de búsqueda
+    param_grid = {
+        'MLPClassifier': {
+            'model': MLPClassifier(random_state=42, max_iter=1000),
+            'params': {
+                'hidden_layer_sizes': [(50,), (100,), (50, 50)],
+                'activation': ['relu', 'tanh'],
+                'alpha': [0.0001, 0.001, 0.01]
+            }
+        },
+        'NaiveBayes': {
+            'model': GaussianNB(),
+            'params': {
+                'var_smoothing': [1e-9, 1e-8, 1e-7]
+            }
+        },
+        'RandomForest': {
+            'model': RandomForestClassifier(random_state=42),
+            'params': {
+                'n_estimators': [100, 200],
+                'max_depth': [None, 10, 20],
+                'min_samples_split': [2, 5],
+                'min_samples_leaf': [1, 2]
+            }
+        },
+        'DecisionTree': {
+            'model': DecisionTreeClassifier(random_state=42),
+            'params': {
+                'max_depth': [None, 10, 20, 30],
+                'min_samples_split': [2, 5, 10],
+                'min_samples_leaf': [1, 2, 4]
+            }
+        },
+        'GradientBoosting': {
+            'model': GradientBoostingClassifier(random_state=42),
+            'params': {
+                'n_estimators': [100, 200],
+                'learning_rate': [0.01, 0.1],
+                'max_depth': [3, 5]
+            }
+        },
+        'AdaBoost': {
+            'model': AdaBoostClassifier(random_state=42),
+            'params': {
+                'n_estimators': [50, 100],
+                'learning_rate': [0.01, 0.1, 1.0]
+            }
+        },
+        'KNeighbors': {
+            'model': KNeighborsClassifier(),
+            'params': {
+                'n_neighbors': [3, 5, 7],
+                'weights': ['uniform', 'distance'],
+                'p': [1, 2]  # Manhattan or Euclidean
+            }
+        },
+        'SVM': {
+            'model': SVC(random_state=42, probability=True),
+            'params': {
+                'C': [0.1, 1, 10],
+                'kernel': ['rbf', 'linear'],
+                'gamma': ['scale', 'auto']
+            }
+        },
+        'LogisticRegression': {
+            'model': LogisticRegression(random_state=42, max_iter=2000),
+            'params': {
+                'C': [0.1, 1, 10],
+                'penalty': ['l1', 'l2'],
+                'solver': ['liblinear', 'saga']
+            }
+        }
+    }
+    
+    # 5. Entrenar y evaluar cada modelo
+    print("\n✨ Iniciando entrenamiento y evaluación de modelos...")
+    
+    # Diccionario para almacenar resultados de todos los modelos
+    resultados_comparativos = []
+    
+    try:
+        for nombre, config in param_grid.items():
+            print(f"\n🔄 Entrenando {nombre}...")
+            try:
+                # Entrenar modelo
+                resultado = entrenar_y_evaluar_modelo(
+                    nombre, config, X_train, y_train, X_test, y_test
+                )
+                modelo = resultado['modelo']
+                
+                # Obtener predicciones
+                y_pred = modelo.predict(X_test)
+                
+                # Calcular métricas
+                from sklearn.metrics import (accuracy_score, f1_score,
+                                             precision_score, recall_score)
+                accuracy = accuracy_score(y_test, y_pred)
+                precision = precision_score(y_test, y_pred, average='weighted')
+                recall = recall_score(y_test, y_pred, average='weighted')
+                f1 = f1_score(y_test, y_pred, average='weighted')
+                
+                # Guardar resultados para comparación
+                resultados_comparativos.append({
+                    'Modelo': nombre,
+                    'Accuracy': accuracy,
+                    'Precision': precision,
+                    'Recall': recall,
+                    'F1-Score': f1
+                })
+                
+                print(f"\n📊 Resultados para {nombre}:")
+                print(f"Mejores parámetros: {resultado['mejores_params']}")
+                print(f"\nMatriz de Confusión:")
+                cm = confusion_matrix(y_test, y_pred)
+                print(cm)
+                print(f"\nReporte de Clasificación:")
+                print(classification_report(y_test, y_pred))
+                
+                # Guardar matriz de confusión como imagen
+                plt.figure(figsize=(8, 6))
+                sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+                           xticklabels=['No Desertor', 'Desertor'],
+                           yticklabels=['No Desertor', 'Desertor'])
+                plt.title(f'Matriz de Confusión - {nombre}')
+                plt.ylabel('Valor Real')
+                plt.xlabel('Predicción')
+                plt.tight_layout()
+                plt.savefig(os.path.join(RESULTADOS_BASE, 'matrices', f'matriz_confusion_{nombre.lower()}.png'), dpi=300, bbox_inches='tight')
+                plt.close()
+                
+                # Usar evaluador para gráficos adicionales (ROC, Precision-Recall)
+                print(f"\n📈 Generando gráficos adicionales para {nombre}...")
+                evaluador_modelo = EvaluadorModelo(
+                    output_dir=os.path.join(RESULTADOS_BASE, 'graficos', nombre.lower())
+                )
+                
+                # Obtener probabilidades si el modelo las soporta
+                try:
+                    y_prob = modelo.predict_proba(X_test)[:, 1]
+                except:
+                    print(f"⚠️  {nombre} no soporta predict_proba, usando predicciones binarias")
+                    y_prob = y_pred
+                
+                # Generar curvas ROC y Precision-Recall
+                evaluador_modelo.plot_roc_curve(y_test, y_prob)
+                evaluador_modelo.plot_precision_recall_curve(y_test, y_prob)
+                evaluador_modelo.guardar_metricas(y_test, y_pred, y_prob)
+                
+                # Generar gráficos de barras intuitivos (ahora incluido en evaluador)
+                print(f"\n📊 Generando gráficos de barras intuitivos para {nombre}...")
+                evaluador_modelo.generar_graficos_intuitivos(y_test, y_pred, nombre)
+                
+                # Generar curva de aprendizaje
+                plot_learning_curve(modelo, X_train, y_train, nombre)
+                
+                # Guardar modelo
+                joblib.dump(modelo, os.path.join(RESULTADOS_BASE, 'modelos', f'{nombre.lower()}_model.pkl'))
+                
+                # Graficar importancia de variables si está disponible
+                if hasattr(modelo, 'feature_importances_'):
+                    importancias = pd.DataFrame({
+                        'Variable': X.columns,
+                        'Importancia': modelo.feature_importances_
+                    }).sort_values('Importancia', ascending=False)
+                    
+                    plt.figure(figsize=(12, 6))
+                    sns.barplot(x='Importancia', y='Variable', data=importancias.head(15))
+                    plt.title(f'Variables más importantes - {nombre}')
+                    plt.tight_layout()
+                    plt.savefig(os.path.join(RESULTADOS_BASE, 'graficos', f'importancia_{nombre.lower()}.png'), dpi=300)
+                    plt.close()
+                    
+                    # Usar evaluador para guardar importancia de características detallada
+                    evaluador_modelo.plot_feature_importance(modelo, X.columns, top_n=20)
+                
+                print(f"✅ {nombre} completado exitosamente")
+                
+            except Exception as e:
+                print(f"❌ Error al entrenar {nombre}: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                continue
+        
+        # 6. Mostrar tabla comparativa de resultados
+        if resultados_comparativos:
+            print("\n" + "="*80)
+            print("📊 TABLA COMPARATIVA DE TODOS LOS MODELOS")
+            print("="*80)
+            df_resultados = pd.DataFrame(resultados_comparativos)
+            df_resultados = df_resultados.sort_values('Accuracy', ascending=False)
+            print(df_resultados.to_string(index=False))
+            
+            # Guardar resultados en CSV
+            csv_path = os.path.join(RESULTADOS_BASE, 'metricas', 'comparacion_modelos.csv')
+            df_resultados.to_csv(csv_path, index=False)
+            print(f"\n💾 Resultados guardados en: {csv_path}")
+            
+            # Crear gráfico comparativo
+            fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+            
+            metricas = ['Accuracy', 'Precision', 'Recall', 'F1-Score']
+            for idx, metrica in enumerate(metricas):
+                ax = axes[idx // 2, idx % 2]
+                df_sorted = df_resultados.sort_values(metrica, ascending=True)
+                ax.barh(df_sorted['Modelo'], df_sorted[metrica])
+                ax.set_xlabel(metrica)
+                ax.set_title(f'Comparación de {metrica}')
+                ax.set_xlim([0.85, 1.0])
+                
+                # Agregar valores en las barras
+                for i, v in enumerate(df_sorted[metrica]):
+                    ax.text(v, i, f' {v:.4f}', va='center')
+            
+            plt.tight_layout()
+            grafico_path = os.path.join(RESULTADOS_BASE, 'graficos', 'comparacion_todos_modelos.png')
+            plt.savefig(grafico_path, dpi=300, bbox_inches='tight')
+            plt.close()
+            print(f"📈 Gráfico comparativo guardado en: {grafico_path}")
+            
+            print("\n🏆 Mejor modelo según Accuracy: " + df_resultados.iloc[0]['Modelo'])
+        
+        print("\n✅ Proceso completado exitosamente")
+        
+    except Exception as e:
+        print(f"❌ Error general: {str(e)}")
+        import traceback
+        traceback.print_exc()
+
+if __name__ == "__main__":
+    main()

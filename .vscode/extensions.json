@@ -1,0 +1,11 @@
+{
+  "recommendations": [
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "ms-toolsai.jupyter",
+    "formulahendry.code-runner",
+    "donjayamanne.python-environment-manager",
+    "njpwerner.autodocstring",
+    "visualstudioexptteam.vscodeintellicode"
+  ]
+}

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{% endblock %} - Sistema de Predicción de Deserción</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <header>
+        <nav>
+            {% if current_user.is_authenticated %}
+            <a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+            <a href="{{ url_for('auth.logout') }}">Cerrar Sesión</a>
+            {% endif %}
+        </nav>
+    </header>
+    
+    <main>
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="flash-message">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        {% block content %}{% endblock %}
+    </main>
+    
+    <footer>
+        <p>&copy; 2025 Sistema de Predicción de Deserción Escolar</p>
+    </footer>
+    
+    {% block scripts %}{% endblock %}
+</body>
+</html>

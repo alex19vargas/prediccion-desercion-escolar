@@ -1,0 +1,14 @@
+=== Reporte de Clasificación ===
+
+              precision    recall  f1-score   support
+
+       False       0.99      0.99      0.99      1267
+        True       0.96      0.97      0.96       233
+
+    accuracy                           0.99      1500
+   macro avg       0.98      0.98      0.98      1500
+weighted avg       0.99      0.99      0.99      1500
+
+=== Métricas Adicionales ===
+ROC AUC Score: 0.9983
+Average Precision Score: 0.9924

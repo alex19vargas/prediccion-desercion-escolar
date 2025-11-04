@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Sistema de Predicción de Deserción Escolar</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .login-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            max-width: 900px;
+            width: 100%;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .login-left {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 60px 40px;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .login-left h1 {
+            font-size: 2rem;
+            margin-bottom: 20px;
+            font-weight: 700;
+        }
+
+        .login-left p {
+            font-size: 1rem;
+            line-height: 1.6;
+            opacity: 0.95;
+        }
+
+        .login-left .feature {
+            margin-top: 30px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .feature-icon {
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+
+        .login-right {
+            padding: 60px 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .login-right h2 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.8rem;
+        }
+
+        .login-right .subtitle {
+            color: #666;
+            margin-bottom: 40px;
+            font-size: 0.95rem;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: all 0.3s;
+            background: #f8f9fa;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .error-message {
+            background: #fee;
+            color: #c33;
+            padding: 12px 16px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+            border: 1px solid #fcc;
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-login:active {
+            transform: translateY(0);
+        }
+
+        .credentials-info {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f0f4ff;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            color: #555;
+        }
+
+        .credentials-info strong {
+            display: block;
+            margin-bottom: 8px;
+            color: #667eea;
+        }
+
+        @media (max-width: 768px) {
+            .login-container {
+                grid-template-columns: 1fr;
+            }
+
+            .login-left {
+                display: none;
+            }
+
+            .login-right {
+                padding: 40px 30px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-left">
+            <h1>Sistema de Predicción de Deserción Escolar</h1>
+            <p>Plataforma avanzada de análisis y predicción utilizando Machine Learning para instituciones educativas en Colombia.</p>
+            
+            <div class="feature">
+                <div class="feature-icon">📊</div>
+                <div>
+                    <strong>Visualización Completa</strong><br>
+                    <small>Matrices de confusión y curvas de aprendizaje</small>
+                </div>
+            </div>
+            
+            <div class="feature">
+                <div class="feature-icon">🎯</div>
+                <div>
+                    <strong>Predicciones Precisas</strong><br>
+                    <small>Modelos entrenados con datos reales</small>
+                </div>
+            </div>
+            
+            <div class="feature">
+                <div class="feature-icon">🔒</div>
+                <div>
+                    <strong>Acceso Seguro</strong><br>
+                    <small>Autenticación y protección de datos</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="login-right">
+            <h2>Iniciar Sesión</h2>
+            <p class="subtitle">Ingresa tus credenciales para acceder al dashboard</p>
+
+            {% if error %}
+            <div class="error-message">
+                ⚠️ {{ error }}
+            </div>
+            {% endif %}
+
+            <form method="POST" action="/login">
+                <div class="form-group">
+                    <label for="username">Usuario</label>
+                    <input type="text" id="username" name="username" required autofocus>
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Contraseña</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+
+                <button type="submit" class="btn-login">Iniciar Sesión</button>
+            </form>
+
+            <!-- <div class="credentials-info">
+                <strong>🔑 Credenciales de prueba:</strong>
+                <div><b>Admin:</b> admin / admin123</div>
+                <div><b>Docente:</b> docente / docente123</div>
+            </div> -->
+        </div>
+    </div>
+</body>
+</html>

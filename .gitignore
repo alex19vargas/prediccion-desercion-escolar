@@ -1,0 +1,85 @@
+# ============================================
+# Python
+# ============================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# ============================================
+# Entornos Virtuales
+# ============================================
+.venv/
+venv/
+ENV/
+env/
+
+# ============================================
+# VS Code
+# ============================================
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# ============================================
+# Jupyter Notebook
+# ============================================
+.ipynb_checkpoints
+
+# ============================================
+# IDEs
+# ============================================
+.idea/
+*.swp
+*.swo
+*~
+
+# ============================================
+# Sistema Operativo
+# ============================================
+.DS_Store
+Thumbs.db
+*.log
+
+# ============================================
+# Proyecto específico
+# ============================================
+# Archivos temporales
+catboost_info/
+*.pkl.tmp
+
+# Bases de datos
+instance/
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+modelo_nuevo_output.log
+
+# Archivos de backup
+*.bak
+backup_*.tar.gz
+
+# Resultados experimentales antiguos
+resultados/experimentos_antiguos/
+
+# Archivos grandes de datos (opcional, depende de tu flujo)
+# datos/*.xlsx
+# datos/*.csv
+
+# Configuración local
+.env
+.env.local
+config.local.py
+
+# Archivos de test
+test_output/
